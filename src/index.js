@@ -1,9 +1,15 @@
 import 'dotenv/config';
+import ffmpegPath from 'ffmpeg-static';
 import { Client, GatewayIntentBits, Partials, Collection } from 'discord.js';
 import { readdirSync } from 'fs';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
+
+// Set FFmpeg path for prism-media / @discordjs/voice
+if (ffmpegPath) {
+  process.env.FFMPEG_PATH = ffmpegPath;
+}
 
 import { loadCommands } from './handlers/commandHandler.js';
 
@@ -36,7 +42,7 @@ async function init() {
 
     for (const file of eventFiles) {
       const filePath = join(eventsPath, file);
-      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+      const fileUrl = pathToFileURL(filePath).href;
       const eventModule = await import(fileUrl);
       const event = eventModule.default;
       
