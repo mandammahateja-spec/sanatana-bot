@@ -1,13 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { COLORS, EMOJIS } from '../../config/constants.js';
-import { supabase, isDatabaseAvailable } from '../../config/supabase.js';
-import { getConfig, setConfig } from '../../models/guildConfig.js';
+import { COLORS, EMOJIS } from '../config/constants.js';
+import { supabase, isDatabaseAvailable } from '../config/supabase.js';
+import { getConfig, setConfig } from '../models/guildConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const shlokasPath = path.join(__dirname, '../../../data/shlokas.json');
+const shlokasPath = path.join(__dirname, '../../data/shlokas.json');
 
 export const postDailyShloka = async (client, guildId, channelId) => {
   try {

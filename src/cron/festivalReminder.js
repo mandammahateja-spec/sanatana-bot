@@ -1,11 +1,11 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { COLORS, EMOJIS } from '../../config/constants.js';
+import { COLORS, EMOJIS } from '../config/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const festivalsPath = path.join(__dirname, '../../../data/festivals.json');
+const festivalsPath = path.join(__dirname, '../../data/festivals.json');
 
 export const checkFestivalReminders = async (client, guildId, channelId) => {
   try {
