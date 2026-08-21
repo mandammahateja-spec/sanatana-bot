@@ -11,33 +11,47 @@ export const askGemini = async (question) => {
     return { error: 'Gemini API key is not configured.' };
   }
 
-  try {
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_CONFIG.MODEL || 'gemini-1.5-flash',
-      systemInstruction: GEMINI_CONFIG.SYSTEM_PROMPT || 'You are Sanatana Bot, a spiritual guide for Sanatana Dharma.'
-    });
+  const modelsToTry = [
+    GEMINI_CONFIG.MODEL || 'gemini-3.6-flash',
+    'gemini-3.6-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash'
+  ];
+  
+  // Remove duplicates
+  const uniqueModels = [...new Set(modelsToTry)];
+  let lastError = null;
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: question }] }],
-      generationConfig: {
-        maxOutputTokens: GEMINI_CONFIG.MAX_TOKENS || 1024,
+  for (const modelName of uniqueModels) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: GEMINI_CONFIG.SYSTEM_PROMPT || 'You are Sanatana Bot, a spiritual guide for Sanatana Dharma.'
+      });
+
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: question }] }],
+        generationConfig: {
+          maxOutputTokens: GEMINI_CONFIG.MAX_TOKENS || 1024,
+        }
+      });
+
+      const response = await result.response;
+      const text = response.text();
+
+      if (text) {
+        return { text };
       }
-    });
-
-    const response = await result.response;
-    const text = response.text();
-
-    if (!text) {
-      return { error: 'Received an empty response from Gemini.' };
+    } catch (err) {
+      console.warn(`[GeminiService] Model ${modelName} error:`, err.message);
+      lastError = err;
     }
-
-    return { text };
-  } catch (err) {
-    console.error('Gemini API Error:', err);
-    let errorMessage = 'An error occurred while communicating with Gemini.';
-    if (err.message && err.message.includes('429')) {
-      errorMessage = 'Rate limit exceeded. Please try again later.';
-    }
-    return { error: errorMessage };
   }
+
+  console.error('Gemini API Error:', lastError);
+  let errorMessage = 'An error occurred while communicating with Gemini.';
+  if (lastError && lastError.message && lastError.message.includes('429')) {
+    errorMessage = 'Rate limit exceeded. Please try again later.';
+  }
+  return { error: errorMessage };
 };

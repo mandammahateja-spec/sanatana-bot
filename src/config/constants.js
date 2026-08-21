@@ -57,7 +57,7 @@ export const COOLDOWNS = {
 
 // Gemini configuration
 export const GEMINI_CONFIG = {
-  MODEL: 'gemini-2.0-flash',
+  MODEL: 'gemini-3.6-flash',
   MAX_TOKENS: 500,
   SYSTEM_PROMPT: `You are a knowledgeable and respectful guide on Sanatana Dharma (Hinduism). 
 You answer questions about Hindu scriptures (Vedas, Upanishads, Bhagavad Gita, Puranas, Ramayana, Mahabharata), 
