@@ -12,20 +12,23 @@ import {
 
 const guildMusicManagers = new Map();
 
-// Initialize SoundCloud client ID once at startup
+// Initialize SoundCloud client ID
 let soundCloudInitialized = false;
 async function initSoundCloud() {
-  if (soundCloudInitialized) return;
+  if (soundCloudInitialized) return true;
   try {
     const clientId = await play.getFreeClientID();
     if (clientId) {
       await play.setToken({ soundcloud: { client_id: clientId } });
       soundCloudInitialized = true;
+      return true;
     }
   } catch (err) {
-    console.warn('[MusicService] Failed to init SoundCloud client ID:', err.message);
+    console.warn('[MusicService] SoundCloud init warning:', err.message);
   }
+  return false;
 }
+// Init immediately
 initSoundCloud();
 
 export class MusicManager {
@@ -35,7 +38,7 @@ export class MusicManager {
     this.currentTrack = null;
     this.connection = null;
     this.player = createAudioPlayer();
-    this.loopMode = 'off'; // 'off' | 'track' | 'queue'
+    this.loopMode = 'off';
     this.isPlaying = false;
     this.idleTimeout = null;
     this.textChannel = null;
@@ -54,89 +57,88 @@ export class MusicManager {
     this.textChannel = textChannel;
     await initSoundCloud();
 
-    try {
-      let trackInfo;
-      if (query.startsWith('http')) {
-        if (query.includes('soundcloud.com')) {
-          const scInfo = await play.soundcloud(query);
-          trackInfo = {
-            title: scInfo.name,
-            url: scInfo.url,
-            duration: 'Track',
-            durationSec: Math.floor(scInfo.durationInMs / 1000),
-            thumbnail: scInfo.thumbnail,
-            requestedBy,
-            source: 'soundcloud'
-          };
-        } else {
-          const videoInfo = await play.video_info(query);
-          trackInfo = {
-            title: videoInfo.video_details.title,
-            url: videoInfo.video_details.url,
-            duration: videoInfo.video_details.durationRaw,
-            durationSec: videoInfo.video_details.durationInSec,
-            thumbnail: videoInfo.video_details.thumbnails[0]?.url,
-            requestedBy,
-            source: 'youtube'
-          };
-        }
-      } else {
-        // Try YouTube search first
-        try {
-          const searchResults = await play.search(query, { limit: 1, source: { youtube: 'video' } });
-          if (searchResults && searchResults.length > 0) {
-            const video = searchResults[0];
-            trackInfo = {
-              title: video.title,
-              url: video.url,
-              duration: video.durationRaw,
-              durationSec: video.durationInSec,
-              thumbnail: video.thumbnails[0]?.url,
-              requestedBy,
-              source: 'youtube'
-            };
-          }
-        } catch (ytSearchErr) {
-          console.warn('[MusicService] YouTube search failed, attempting SoundCloud:', ytSearchErr.message);
-        }
+    let trackInfo = null;
 
-        // Fallback to SoundCloud search if YouTube search yielded nothing
-        if (!trackInfo && soundCloudInitialized) {
+    // 1. Direct URL handling
+    if (query.startsWith('http')) {
+      if (query.includes('soundcloud.com')) {
+        const scInfo = await play.soundcloud(query);
+        trackInfo = {
+          title: scInfo.name,
+          url: scInfo.url,
+          duration: 'Audio Track',
+          durationSec: Math.floor((scInfo.durationInMs || 180000) / 1000),
+          thumbnail: scInfo.thumbnail || 'https://i.imgur.com/8N4XW3p.png',
+          requestedBy,
+          source: 'soundcloud'
+        };
+      } else {
+        const videoInfo = await play.video_info(query);
+        trackInfo = {
+          title: videoInfo.video_details.title,
+          url: videoInfo.video_details.url,
+          duration: videoInfo.video_details.durationRaw || '4:00',
+          durationSec: videoInfo.video_details.durationInSec || 240,
+          thumbnail: videoInfo.video_details.thumbnails[0]?.url || 'https://i.imgur.com/8N4XW3p.png',
+          requestedBy,
+          source: 'youtube'
+        };
+      }
+    } else {
+      // 2. Search query — try SoundCloud first for super fast instant playback (<1 second)
+      if (soundCloudInitialized) {
+        try {
           const scResults = await play.search(query, { limit: 1, source: { soundcloud: 'tracks' } });
           if (scResults && scResults.length > 0) {
             const track = scResults[0];
             trackInfo = {
               title: track.name,
               url: track.url,
-              duration: 'Track',
-              durationSec: Math.floor(track.durationInMs / 1000),
-              thumbnail: track.thumbnail,
+              duration: 'Audio Track',
+              durationSec: Math.floor((track.durationInMs || 180000) / 1000),
+              thumbnail: track.thumbnail || 'https://i.imgur.com/8N4XW3p.png',
               requestedBy,
               source: 'soundcloud'
             };
           }
-        }
-
-        if (!trackInfo) {
-          throw new Error('No results found for your search query.');
+        } catch (scErr) {
+          console.warn('[MusicService] SoundCloud search warning:', scErr.message);
         }
       }
 
-      this.queue.push(trackInfo);
-
-      if (!this.connection) {
-        await this.connectToVoice(voiceChannel);
+      // 3. Fallback to YouTube search if SoundCloud had no match
+      if (!trackInfo) {
+        const ytResults = await play.search(query, { limit: 1, source: { youtube: 'video' } });
+        if (ytResults && ytResults.length > 0) {
+          const video = ytResults[0];
+          trackInfo = {
+            title: video.title,
+            url: video.url,
+            duration: video.durationRaw || '4:00',
+            durationSec: video.durationInSec || 240,
+            thumbnail: video.thumbnails[0]?.url || 'https://i.imgur.com/8N4XW3p.png',
+            requestedBy,
+            source: 'youtube'
+          };
+        }
       }
-
-      if (this.player.state.status === AudioPlayerStatus.Idle) {
-        await this.playNext();
-      }
-
-      return trackInfo;
-    } catch (error) {
-      console.error(`[MusicService] Play error:`, error);
-      throw error;
     }
+
+    if (!trackInfo) {
+      throw new Error('No audio tracks found for your search query.');
+    }
+
+    this.queue.push(trackInfo);
+
+    if (!this.connection) {
+      await this.connectToVoice(voiceChannel);
+    }
+
+    if (this.player.state.status === AudioPlayerStatus.Idle) {
+      await this.playNext();
+    }
+
+    return trackInfo;
   }
 
   async connectToVoice(voiceChannel) {
@@ -148,7 +150,7 @@ export class MusicManager {
 
     this.connection.subscribe(this.player);
 
-    this.connection.on(VoiceConnectionStatus.Disconnected, async (oldState, newState) => {
+    this.connection.on(VoiceConnectionStatus.Disconnected, async () => {
       try {
         await Promise.race([
           entersState(this.connection, VoiceConnectionStatus.Signalling, 5000),
@@ -183,13 +185,13 @@ export class MusicManager {
     }
 
     try {
-      let resource;
-      
+      let resource = null;
+
       if (this.currentTrack.source === 'soundcloud') {
         const stream = await play.stream(this.currentTrack.url);
         resource = createAudioResource(stream.stream, { inputType: stream.type });
       } else {
-        // YouTube track: try yt-dlp first for robust playback, fallback to SoundCloud search
+        // Try yt-dlp first
         try {
           const rawUrl = await youtubedl(this.currentTrack.url, {
             getUrl: true,
@@ -200,9 +202,7 @@ export class MusicManager {
           const audioUrl = rawUrl.trim().split('\n')[0];
           resource = createAudioResource(audioUrl, { inputType: StreamType.Arbitrary });
         } catch (ytErr) {
-          console.warn('[MusicService] yt-dlp stream extraction failed, attempting SoundCloud fallback:', ytErr.message);
-          
-          // SoundCloud audio fallback
+          console.warn('[MusicService] yt-dlp stream error, checking SoundCloud fallback:', ytErr.message);
           if (soundCloudInitialized) {
             const scSearch = await play.search(this.currentTrack.title, { limit: 1, source: { soundcloud: 'tracks' } });
             if (scSearch && scSearch.length > 0) {
@@ -210,21 +210,19 @@ export class MusicManager {
               resource = createAudioResource(scStream.stream, { inputType: scStream.type });
             }
           }
-          
-          if (!resource) {
-            // Direct play-dl attempt as final fallback
-            const fallbackStream = await play.stream(this.currentTrack.url);
-            resource = createAudioResource(fallbackStream.stream, { inputType: fallbackStream.type });
-          }
         }
+      }
+
+      if (!resource) {
+        throw new Error('Unable to create audio resource from stream.');
       }
 
       this.player.play(resource);
       this.isPlaying = true;
     } catch (error) {
-      console.error(`[MusicService] Streaming error:`, error);
+      console.error(`[MusicService] Stream playback error:`, error.message);
       if (this.textChannel) {
-        this.textChannel.send(`⚠️ Could not stream **${this.currentTrack.title}**. Moving to next song...`).catch(() => {});
+        this.textChannel.send(`⚠️ Could not stream **${this.currentTrack.title}**. Skipping to next track...`).catch(() => {});
       }
       this.currentTrack = null;
       this.playNext();
