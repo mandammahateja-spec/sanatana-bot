@@ -145,10 +145,19 @@ export class MusicManager {
     this.connection = joinVoiceChannel({
       channelId: voiceChannel.id,
       guildId: voiceChannel.guild.id,
-      adapterCreator: voiceChannel.guild.voiceAdapterCreator
+      adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+      selfDeaf: false,
+      selfMute: false
     });
 
     this.connection.subscribe(this.player);
+
+    try {
+      await entersState(this.connection, VoiceConnectionStatus.Ready, 15_000);
+      console.log(`[MusicService] Voice connection ready in channel ${voiceChannel.id}`);
+    } catch (connErr) {
+      console.warn(`[MusicService] Voice connection ready state warning:`, connErr.message);
+    }
 
     this.connection.on(VoiceConnectionStatus.Disconnected, async () => {
       try {
