@@ -142,6 +142,18 @@ export class MusicManager {
   }
 
   async connectToVoice(voiceChannel) {
+    if (!voiceChannel || !voiceChannel.id || !voiceChannel.guild) {
+      throw new Error('Invalid voice channel object or user is not in a voice channel.');
+    }
+
+    if (this.connection) {
+      if (this.connection.joinConfig.channelId === voiceChannel.id && this.connection.state.status === VoiceConnectionStatus.Ready) {
+        return;
+      }
+      try { this.connection.destroy(); } catch (e) {}
+      this.connection = null;
+    }
+
     this.connection = joinVoiceChannel({
       channelId: voiceChannel.id,
       guildId: voiceChannel.guild.id,
@@ -154,7 +166,7 @@ export class MusicManager {
 
     try {
       await entersState(this.connection, VoiceConnectionStatus.Ready, 15_000);
-      console.log(`[MusicService] Voice connection ready in channel ${voiceChannel.id}`);
+      console.log(`[MusicService] Voice connection successfully joined and ready in channel: ${voiceChannel.name}`);
     } catch (connErr) {
       console.warn(`[MusicService] Voice connection ready state warning:`, connErr.message);
     }

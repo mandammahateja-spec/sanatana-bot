@@ -24,14 +24,14 @@ export default {
     try {
       await context.defer();
       const sub = context.isSlash ? interaction.options.getSubcommand() : context.subcommand;
-      const guildId = context.guild.id;
-      const member = context.member;
-      const voiceChannel = member.voice.channel;
-      const musicService = getMusicService(guildId);
+      const guild = context.guild;
+      const member = await guild.members.fetch(context.user.id).catch(() => context.member);
+      const voiceChannel = member?.voice?.channel;
+      const musicService = getMusicService(guild.id);
 
       if (!voiceChannel) {
         return context.editReply({ 
-          embeds: [new EmbedBuilder().setColor(COLORS.RED).setDescription(`${EMOJIS.ERROR || '❌'} You need to be in a voice channel to use music commands!`)] 
+          embeds: [new EmbedBuilder().setColor(COLORS.RED).setDescription(`${EMOJIS.ERROR || '❌'} You need to join a voice channel first before using music commands!`)] 
         });
       }
 

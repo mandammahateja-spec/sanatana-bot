@@ -42,11 +42,13 @@ export default {
       }
 
       const query = AARTI_MAP[deityKey];
-      const voiceChannel = context.member?.voice?.channel;
+      const guild = context.guild;
+      const member = await guild.members.fetch(context.user.id).catch(() => context.member);
+      const voiceChannel = member?.voice?.channel;
       
       if (!voiceChannel) {
         return context.editReply({ 
-          embeds: [new EmbedBuilder().setColor(COLORS.RED).setDescription(`${EMOJIS.ERROR || '❌'} You need to be in a voice channel to use this command!`)] 
+          embeds: [new EmbedBuilder().setColor(COLORS.RED).setDescription(`${EMOJIS.ERROR || '❌'} You need to join a voice channel first before using this command!`)] 
         });
       }
 
