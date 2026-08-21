@@ -1,5 +1,6 @@
 import { readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { pathToFileURL } from 'url';
 import { Collection } from 'discord.js';
 
 /**
@@ -41,8 +42,8 @@ export async function loadCommands(client, dir = './src/commands') {
 
   for (const filePath of commandFiles) {
     try {
-      // Need to convert path to file URL for dynamic import on Windows
-      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+      const absPath = resolve(filePath);
+      const fileUrl = pathToFileURL(absPath).href;
       const commandModule = await import(fileUrl);
       const command = commandModule.default;
 
