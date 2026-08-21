@@ -1,4 +1,5 @@
 import { ActivityType } from 'discord.js';
+import { startScheduler } from '../cron/scheduler.js';
 
 export default {
   name: 'ready',
@@ -10,13 +11,12 @@ export default {
     client.user.setActivity('🕉️ Jai Shree Krishna | /help', { type: ActivityType.Custom });
 
     try {
-      const { startScheduler } = await import('../cron/scheduler.js');
       if (startScheduler) {
         startScheduler(client);
         console.log('Cron scheduler started.');
       }
     } catch (error) {
-      console.log('Scheduler module not found or failed to load. Skipping scheduler.');
+      console.log('Error initializing cron scheduler:', error.message);
     }
   }
 };
