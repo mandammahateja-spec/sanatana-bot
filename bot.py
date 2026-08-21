@@ -7,6 +7,7 @@ import json
 import os
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from dotenv import load_dotenv
 
 load_dotenv()
 
