@@ -43,16 +43,19 @@ A Discord bot for Sanatana Dharma communities built with Python (`discord.py`).
 
 ---
 
-### Option 2: Render (Free Background Worker)
+### Option 2: Render (Free Web Service — 100% Free)
 1. Sign up at [render.com](https://render.com)
-2. Click **New +** → **Background Worker**.
+2. Click **New +** → **Web Service** (Select the **Free** instance tier).
 3. Connect your GitHub repo `mandammahateja-spec/sanatana-bot`.
-4. Set settings:
-   - **Environment**: `Python 3`
+4. Configure settings:
+   - **Language**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `python bot.py`
-5. Add `DISCORD_TOKEN` in **Environment Variables**.
-6. Click **Create Background Worker**.
+   - **Instance Type**: `Free`
+5. In **Environment Variables**, add:
+   - `DISCORD_TOKEN` = `your_discord_bot_token`
+6. Click **Create Web Service**.
+*(Note: `bot.py` includes a built-in health check HTTP server that binds to Render's `$PORT`, so Render keeps your Web Service active 24/7 on the Free tier!)*
 
 ---
 

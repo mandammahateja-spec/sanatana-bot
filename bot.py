@@ -5,9 +5,33 @@ import re
 import random
 import json
 import os
-from dotenv import load_dotenv
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 load_dotenv()
+
+# --- Lightweight Web Server for Render Free Tier (Port binding) ---
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Saffron Sovereigns Bot is Online!")
+
+    def log_message(self, format, *args):
+        return
+
+def run_web_server():
+    port = int(os.getenv("PORT", "8080"))
+    try:
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+        print(f"Web server listening on port {port} for Render health check")
+        server.serve_forever()
+    except Exception as e:
+        print(f"Web server warning: {e}")
+
+threading.Thread(target=run_web_server, daemon=True).start()
+# -----------------------------------------------------------------
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=["jai ", "Jai "], intents=intents)
