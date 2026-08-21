@@ -80,10 +80,10 @@ def mod_check():
 
 @bot.event
 async def on_ready():
-    print(f"✅ Logged in as {bot.user.name}")
+    print(f"Logged in as {bot.user.name}")
     await bot.change_presence(
         status=discord.Status.online,
-        activity=discord.Game("Jai Shree Ram | jai help 🚩")
+        activity=discord.Game("Jai Shree Ram | jai help")
     )
 
 @bot.event
