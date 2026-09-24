@@ -8,31 +8,9 @@ import os
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
+import vrata_panchang
 
 load_dotenv()
-
-# --- Lightweight Web Server for Render Free Tier (Port binding) ---
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"Saffron Sovereigns Bot is Online!")
-
-    def log_message(self, format, *args):
-        return
-
-def run_web_server():
-    port = int(os.getenv("PORT", "8080"))
-    try:
-        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-        print(f"Web server listening on port {port} for Render health check")
-        server.serve_forever()
-    except Exception as e:
-        print(f"Web server warning: {e}")
-
-threading.Thread(target=run_web_server, daemon=True).start()
-# -----------------------------------------------------------------
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=["jai ", "Jai "], intents=intents)
@@ -106,6 +84,12 @@ def mod_check():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name}")
+    try:
+        import dashboard
+        dashboard.init_dashboard(bot, asyncio.get_running_loop(), host='127.0.0.1', port=5000)
+    except Exception as e:
+        print(f"Local dashboard initialization notice: {e}")
+
     await bot.change_presence(
         status=discord.Status.online,
         activity=discord.Game("Jai Shree Ram | jai help")
@@ -464,7 +448,57 @@ async def help(ctx):
         "📜 `jai random` – Shows a random Gita verse"
     ), inline=False)
 
-    embed.set_footer(text="🚩 Saffron Sovereigns by Mahateja1")
+@bot.command(name="vrata", help="View 50-Year Vrata Panchang Calendar")
+async def vrata_command(ctx, query: str = None):
+    if not query:
+        events = vrata_panchang.get_upcoming_vratas(limit=8)
+        embed = discord.Embed(
+            title="📅 50-Year Vrata Panchang — Upcoming Sacred Fasts",
+            description="✨ Complete Hindu Vrata & Festival Calendar (2025 – 2075)\n\n"
+                        "Use `jai vrata 2026` for a specific year or `jai vrata ekadashi` to search!",
+            color=0xff9900
+        )
+        for ev in events:
+            embed.add_field(
+                name=f"{ev['name']} — {ev['date']}",
+                value=f"📜 **Tithi:** {ev['tithi']}\n🕉️ **Deity:** {ev['deity']}",
+                inline=False
+            )
+        embed.set_footer(text="🚩 Saffron Sovereigns Vrata Panchang")
+        return await ctx.send(embed=embed)
+
+    if query.isdigit():
+        year = int(query)
+        events = vrata_panchang.get_vratas_for_year(year)
+        embed = discord.Embed(
+            title=f"📅 Sanatana Vrata Panchang Calendar — Year {year}",
+            description=f"✨ Showing major Vratas and Sacred Days for **{year}**",
+            color=0xff9900
+        )
+        for ev in events[:12]:
+            embed.add_field(
+                name=f"{ev['name']} ({ev['date']})",
+                value=f"📜 {ev['tithi']} | 🕉️ {ev['deity']}",
+                inline=False
+            )
+        embed.set_footer(text=f"🚩 Saffron Sovereigns 50-Year Panchang ({year})")
+        return await ctx.send(embed=embed)
+
+    all_events = vrata_panchang.get_upcoming_vratas(limit=30)
+    matched = [e for e in all_events if query.lower() in e['name'].lower() or query.lower() in e['tithi'].lower()]
+    if not matched:
+        return await ctx.send(f"🔍 No upcoming Vratas found matching `{query}`.")
+
+    embed = discord.Embed(
+        title=f"🔍 Vrata Search Results for `{query}`",
+        color=0xff9900
+    )
+    for ev in matched[:8]:
+        embed.add_field(
+            name=f"{ev['name']} — {ev['date']}",
+            value=f"📜 {ev['tithi']} | 🕉️ {ev['deity']}",
+            inline=False
+        )
     await ctx.send(embed=embed)
 
 token = os.getenv("DISCORD_TOKEN")
