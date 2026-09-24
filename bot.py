@@ -10,7 +10,28 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
 import gemini_service
 
-load_dotenv()
+# --- Immediate Port Binding Web Server for Render Free Tier ---
+class RenderHealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Saffron Sovereigns Bot is Online and Healthy!")
+
+    def log_message(self, format, *args):
+        return
+
+def start_render_health_server():
+    port = int(os.getenv("PORT", "8080"))
+    try:
+        server = HTTPServer(("0.0.0.0", port), RenderHealthHandler)
+        print(f"Render health server listening on port {port}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"Health server status: {e}")
+
+threading.Thread(target=start_render_health_server, daemon=True).start()
+# -------------------------------------------------------------
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix=["jai ", "Jai "], intents=intents)
