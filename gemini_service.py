@@ -1,5 +1,5 @@
 """
-🕉️ Sanatana Dharma AI Service using Google Gemini AI
+🕉️ Sanatana Dharma AI Service using Google Gemini 3.6 Flash
 """
 
 import os
@@ -23,11 +23,10 @@ Guidelines:
 """
 
 _client = None
-_legacy_genai = None
 
 def get_gemini_client():
-    global _client, _legacy_genai
-    if _client is not None or _legacy_genai is not None:
+    global _client
+    if _client is not None:
         return _client
 
     api_key = os.getenv("GEMINI_API_KEY")
@@ -42,44 +41,36 @@ def get_gemini_client():
         try:
             import google.generativeai as legacy_genai
             legacy_genai.configure(api_key=api_key)
-            _legacy_genai = legacy_genai
-            return None
+            return legacy_genai
         except ImportError:
             raise ImportError("Neither 'google-genai' nor 'google-generativeai' is installed. Please run `pip install google-genai`.")
 
 async def ask_hinduism_ai(prompt: str) -> str:
-    """Queries Gemini API asynchronously with Sanatana Dharma system instructions."""
+    """Queries Gemini 3.6 Flash API asynchronously with Sanatana Dharma system instructions."""
     def _call():
-        global _client, _legacy_genai
-        get_gemini_client()
+        client_obj = get_gemini_client()
 
-        if _client:
+        # Official Google GenAI SDK (google.genai)
+        if hasattr(client_obj, 'models'):
             from google.genai import types
-            models_to_try = ['gemini-3.6-flash', 'gemini-1.5-flash', 'gemini-2.0-flash']
-            last_error = None
-            for m in models_to_try:
-                try:
-                    response = _client.models.generate_content(
-                        model=m,
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=SYSTEM_INSTRUCTION,
-                            temperature=0.7,
-                            max_output_tokens=1000,
-                        )
-                    )
-                    if response and response.text:
-                        return response.text.strip()
-                except Exception as e:
-                    last_error = e
-                    continue
-            raise last_error or Exception("Gemini AI request failed.")
-        
-        elif _legacy_genai:
-            model = _legacy_genai.GenerativeModel('gemini-1.5-flash', system_instruction=SYSTEM_INSTRUCTION)
+            response = client_obj.models.generate_content(
+                model='gemini-3.6-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INSTRUCTION,
+                    temperature=0.7,
+                    max_output_tokens=1000,
+                )
+            )
+            if response and response.text:
+                return response.text.strip()
+            raise Exception("Gemini AI returned empty response.")
+        else:
+            # Fallback legacy SDK
+            model = client_obj.GenerativeModel('gemini-3.6-flash', system_instruction=SYSTEM_INSTRUCTION)
             response = model.generate_content(prompt)
             if response and response.text:
                 return response.text.strip()
-            raise Exception("Legacy Gemini request failed.")
+            raise Exception("Gemini AI legacy request failed.")
 
     return await asyncio.to_thread(_call)
