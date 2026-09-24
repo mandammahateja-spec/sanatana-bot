@@ -1,8 +1,10 @@
 """
 🕉️ Sanatana Dharma AI Service using Google Gemini 3.6 Flash
+Includes exponential backoff retries and multi-model fallbacks for 503 high-demand protection.
 """
 
 import os
+import time
 import asyncio
 from dotenv import load_dotenv
 
@@ -43,34 +45,69 @@ def get_gemini_client():
             legacy_genai.configure(api_key=api_key)
             return legacy_genai
         except ImportError:
-            raise ImportError("Neither 'google-genai' nor 'google-generativeai' is installed. Please run `pip install google-genai`.")
+            raise ImportError("Neither 'google-genai' nor 'google-generativeai' is installed.")
 
 async def ask_hinduism_ai(prompt: str) -> str:
-    """Queries Gemini 3.6 Flash API asynchronously with Sanatana Dharma system instructions."""
+    """Queries Gemini 3.6 Flash API asynchronously with 503 high-demand retry logic and model fallbacks."""
     def _call():
         client_obj = get_gemini_client()
+
+        # Target models in priority order
+        candidate_models = ['gemini-3.6-flash', 'gemini-3-flash-preview', 'gemini-flash-latest']
 
         # Official Google GenAI SDK (google.genai)
         if hasattr(client_obj, 'models'):
             from google.genai import types
-            response = client_obj.models.generate_content(
-                model='gemini-3.6-flash',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_INSTRUCTION,
-                    temperature=0.7,
-                    max_output_tokens=1000,
-                )
-            )
-            if response and response.text:
-                return response.text.strip()
-            raise Exception("Gemini AI returned empty response.")
+            
+            last_error = None
+            for model_name in candidate_models:
+                # Up to 3 retries per model for 503 UNAVAILABLE spikes
+                for attempt in range(3):
+                    try:
+                        response = client_obj.models.generate_content(
+                            model=model_name,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                system_instruction=SYSTEM_INSTRUCTION,
+                                temperature=0.7,
+                                max_output_tokens=1000,
+                            )
+                        )
+                        if response and response.text:
+                            return response.text.strip()
+                    except Exception as e:
+                        err_str = str(e)
+                        last_error = e
+                        # If 503 UNAVAILABLE or 429 Rate Limit, wait briefly and retry
+                        if "503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str:
+                            time.sleep(1.0 * (attempt + 1))
+                            continue
+                        else:
+                            # If model not found or another error, try next candidate model
+                            break
+
+            if last_error:
+                err_text = str(last_error)
+                if "503" in err_text or "UNAVAILABLE" in err_text:
+                    return ("🙏 **The Divine AI Wisdom service is experiencing temporary high demand on Google's servers.**\n\n"
+                            "Spikes in traffic usually clear in a few seconds. Please try asking your question again in a moment! 🚩")
+                raise last_error
+
+            raise Exception("Gemini AI service returned empty response.")
+
         else:
             # Fallback legacy SDK
             model = client_obj.GenerativeModel('gemini-3.6-flash', system_instruction=SYSTEM_INSTRUCTION)
-            response = model.generate_content(prompt)
-            if response and response.text:
-                return response.text.strip()
+            for attempt in range(3):
+                try:
+                    response = model.generate_content(prompt)
+                    if response and response.text:
+                        return response.text.strip()
+                except Exception as e:
+                    if attempt < 2:
+                        time.sleep(1.0 * (attempt + 1))
+                        continue
+                    raise e
             raise Exception("Gemini AI legacy request failed.")
 
     return await asyncio.to_thread(_call)
