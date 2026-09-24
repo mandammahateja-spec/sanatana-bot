@@ -8,7 +8,7 @@ import os
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from dotenv import load_dotenv
-import vrata_panchang
+import gemini_service
 
 load_dotenv()
 
@@ -99,6 +99,26 @@ async def on_ready():
 async def on_message(message):
     if message.author.bot:
         return
+
+    # Respond to direct mentions (@Saffron Sovereigns) using Gemini AI
+    if bot.user in message.mentions and not message.mention_everyone:
+        content_clean = message.content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
+        if content_clean:
+            async with message.channel.typing():
+                try:
+                    answer = await gemini_service.ask_hinduism_ai(content_clean)
+                    embed = discord.Embed(
+                        title="🕉️ Sanatana Spiritual Answer",
+                        description=answer,
+                        color=0xff9900
+                    )
+                    embed.set_footer(text="🚩 Powered by Gemini AI | Saffron Sovereigns")
+                    await message.reply(embed=embed)
+                    return
+                except Exception as err:
+                    await message.reply(f"❌ Error getting AI answer: {err}")
+                    return
+
     for pattern, reply in PATTERNS.items():
         if re.search(pattern, message.content, re.IGNORECASE):
             await message.channel.send(reply.format(user_mention=message.author.mention))
@@ -448,58 +468,21 @@ async def help(ctx):
         "📜 `jai random` – Shows a random Gita verse"
     ), inline=False)
 
-@bot.command(name="vrata", help="View 50-Year Vrata Panchang Calendar")
-async def vrata_command(ctx, query: str = None):
-    if not query:
-        events = vrata_panchang.get_upcoming_vratas(limit=8)
-        embed = discord.Embed(
-            title="📅 50-Year Vrata Panchang — Upcoming Sacred Fasts",
-            description="✨ Complete Hindu Vrata & Festival Calendar (2025 – 2075)\n\n"
-                        "Use `jai vrata 2026` for a specific year or `jai vrata ekadashi` to search!",
-            color=0xff9900
-        )
-        for ev in events:
-            embed.add_field(
-                name=f"{ev['name']} — {ev['date']}",
-                value=f"📜 **Tithi:** {ev['tithi']}\n🕉️ **Deity:** {ev['deity']}",
-                inline=False
+@bot.command(name="ask", aliases=["ai", "gyan", "sanatana"], help="Ask Sanatana Dharma AI any question about Hinduism")
+async def ask_command(ctx, *, question: str):
+    async with ctx.typing():
+        try:
+            answer = await gemini_service.ask_hinduism_ai(question)
+            embed = discord.Embed(
+                title="🕉️ Sanatana Spiritual Q&A",
+                description=answer,
+                color=0xff9900
             )
-        embed.set_footer(text="🚩 Saffron Sovereigns Vrata Panchang")
-        return await ctx.send(embed=embed)
-
-    if query.isdigit():
-        year = int(query)
-        events = vrata_panchang.get_vratas_for_year(year)
-        embed = discord.Embed(
-            title=f"📅 Sanatana Vrata Panchang Calendar — Year {year}",
-            description=f"✨ Showing major Vratas and Sacred Days for **{year}**",
-            color=0xff9900
-        )
-        for ev in events[:12]:
-            embed.add_field(
-                name=f"{ev['name']} ({ev['date']})",
-                value=f"📜 {ev['tithi']} | 🕉️ {ev['deity']}",
-                inline=False
-            )
-        embed.set_footer(text=f"🚩 Saffron Sovereigns 50-Year Panchang ({year})")
-        return await ctx.send(embed=embed)
-
-    all_events = vrata_panchang.get_upcoming_vratas(limit=30)
-    matched = [e for e in all_events if query.lower() in e['name'].lower() or query.lower() in e['tithi'].lower()]
-    if not matched:
-        return await ctx.send(f"🔍 No upcoming Vratas found matching `{query}`.")
-
-    embed = discord.Embed(
-        title=f"🔍 Vrata Search Results for `{query}`",
-        color=0xff9900
-    )
-    for ev in matched[:8]:
-        embed.add_field(
-            name=f"{ev['name']} — {ev['date']}",
-            value=f"📜 {ev['tithi']} | 🕉️ {ev['deity']}",
-            inline=False
-        )
-    await ctx.send(embed=embed)
+            embed.set_author(name=f"Question by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+            embed.set_footer(text="🚩 Powered by Gemini AI | Saffron Sovereigns")
+            await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ Error getting AI answer: {e}")
 
 token = os.getenv("DISCORD_TOKEN")
 if not token:
